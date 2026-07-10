@@ -1,32 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { getCurrentUser } from '../hooks/Auth'
-
-// ── Mock data ────────────────────────────────────────────────────
-// Replace with real API calls once backend is ready.
-// e.g. fetch('/api/admin/applications', { headers: { Authorization: `Bearer ${token}` } })
-const MOCK_STATS = [
-  { label: 'Total Applications', value: 142, icon: '📋' },
-  { label: 'Pending Review',     value: 38,  icon: '⏳' },
-  { label: 'Accepted',           value: 76,  icon: '✅' },
-  { label: 'Registered Users',   value: 94,  icon: '👥' },
-]
-
-const INITIAL_APPLICATIONS = [
-  { id: 1, parent: 'Sipho Mokwena',   school: 'Pretoria High School', grade: 'Grade 8', submitted: '2025-03-01', status: 'PENDING'      },
-  { id: 2, parent: 'Zanele Dlamini',  school: "St John's College",    grade: 'Grade 9', submitted: '2025-03-02', status: 'UNDER_REVIEW' },
-  { id: 3, parent: 'Thabo Nkosi',     school: 'Northcliff Primary',   grade: 'Grade 4', submitted: '2025-03-03', status: 'PENDING'      },
-  { id: 4, parent: 'Lerato Sithole',  school: 'Parktown Boys High',   grade: 'Grade 8', submitted: '2025-03-05', status: 'ACCEPTED'     },
-  { id: 5, parent: 'Nomvula Khumalo', school: 'Crawford College',     grade: 'Grade 6', submitted: '2025-03-06', status: 'DECLINED'     },
-  { id: 6, parent: 'Bongani Zulu',    school: 'Wits High School',     grade: 'Grade 10', submitted: '2025-03-07', status: 'PENDING'     },
-]
-
-const MOCK_USERS = [
-  { id: 1, name: 'Sipho Mokwena',   email: 'sipho@email.com',   role: 'ROLE_PARENT',  joined: '2025-02-10' },
-  { id: 2, name: 'Zanele Dlamini',  email: 'zanele@email.com',  role: 'ROLE_PARENT',  joined: '2025-02-12' },
-  { id: 3, name: 'Mr Ndlovu',       email: 'ndlovu@school.com', role: 'ROLE_TEACHER', joined: '2025-01-05' },
-  { id: 4, name: 'Thabo Nkosi',     email: 'thabo@email.com',   role: 'ROLE_PARENT',  joined: '2025-03-01' },
-  { id: 5, name: 'Ms Khumalo',      email: 'khumalo@school.com',role: 'ROLE_TEACHER', joined: '2025-01-08' },
-]
+import {
+  FiFileText, FiClock, FiCheckCircle, FiUsers,
+  FiXCircle, FiAlertCircle
+} from 'react-icons/fi'
 
 const STATUS_MAP = {
   PENDING:      { label: 'Pending',      color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
@@ -36,36 +13,151 @@ const STATUS_MAP = {
 }
 
 const ROLE_MAP = {
-  ROLE_PARENT:  { label: 'Parent',  color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'     },
-  ROLE_TEACHER: { label: 'Teacher', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-  ROLE_ADMIN:   { label: 'Admin',   color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'           },
+  ROLE_PARENT:  { label: 'Parent',  color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'           },
+  ROLE_TEACHER: { label: 'Teacher', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'   },
+  ROLE_ADMIN:   { label: 'Admin',   color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'               },
 }
 
-// Which tab is active — "applications" or "users"
 const TABS = ['Applications', 'Users']
 
 export default function AdminDashboard() {
   const user = getCurrentUser()
 
   const [activeTab,    setActiveTab]    = useState('Applications')
-  const [applications, setApplications] = useState(INITIAL_APPLICATIONS)
+  const [applications, setApplications] = useState([])
+  const [users,        setUsers]        = useState([])
+  const [stats,        setStats]        = useState(null)
   const [filterStatus, setFilterStatus] = useState('ALL')
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState(null)
+  const [deciding,     setDeciding]     = useState(null) // id of app being decided
 
-  // Called when admin clicks Approve or Decline on an application.
-  // Updates the status locally — replace the setApplications call with
-  // a real PATCH /api/admin/applications/{id}/status request when wiring the backend.
-  const handleDecision = (id, decision) => {
-    setApplications(prev =>
-      prev.map(app =>
-        app.id === id ? { ...app, status: decision } : app
+  const token = localStorage.getItem('token')
+  const headers = { Authorization: `Bearer ${token}` }
+
+  // ── Fetch everything on mount ─────────────────────────────────
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        // Run all three requests in parallel for speed
+        const [appsRes, statsRes, usersRes] = await Promise.all([
+          fetch('http://localhost:8080/api/applications/admin/all',   { headers }),
+          fetch('http://localhost:8080/api/applications/admin/stats', { headers }),
+          fetch('http://localhost:8080/api/users',                    { headers }),
+        ])
+
+        if (!appsRes.ok)  throw new Error('Failed to load applications')
+        if (!statsRes.ok) throw new Error('Failed to load stats')
+
+        const appsData  = await appsRes.json()
+        const statsData = await statsRes.json()
+
+        // Map backend fields to what the UI expects
+        const mappedApps = appsData.map(app => ({
+          id:        app.id,
+          parent:    `${app.parentFirstName} ${app.parentLastName}`,
+          school:    app.schoolName,
+          grade:     app.gradeApplying,
+          submitted: app.submittedAt ? app.submittedAt.split('T')[0] : '—',
+          status:    app.status,
+          refNumber: app.referenceNumber,
+        }))
+
+        setApplications(mappedApps)
+        setStats(statsData)
+
+        // Users endpoint is optional — fail gracefully if not built yet
+        if (usersRes.ok) {
+          const usersData = await usersRes.json()
+          setUsers(usersData)
+        }
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAll()
+  }, [])
+
+  // ── Approve or decline an application ────────────────────────
+  // PATCH /api/applications/admin/{id}/status
+  const handleDecision = async (id, decision) => {
+    setDeciding(id)
+    try {
+      const res = await fetch(`http://localhost:8080/api/applications/admin/${id}/status`, {
+        method:  'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: decision, adminNotes: null }),
+      })
+
+      if (!res.ok) throw new Error('Failed to update status')
+
+      // Update the application in local state — no need to refetch everything
+      setApplications(prev =>
+        prev.map(app => app.id === id ? { ...app, status: decision } : app)
       )
-    )
+
+      // Update the stats counts locally to reflect the decision
+      setStats(prev => {
+        if (!prev) return prev
+        const oldStatus = applications.find(a => a.id === id)?.status
+        return {
+          ...prev,
+          pending:     oldStatus === 'PENDING'      ? prev.pending - 1      : prev.pending,
+          underReview: oldStatus === 'UNDER_REVIEW'  ? prev.underReview - 1  : prev.underReview,
+          accepted:    decision  === 'ACCEPTED'      ? prev.accepted + 1     : prev.accepted,
+          declined:    decision  === 'DECLINED'      ? prev.declined + 1     : prev.declined,
+        }
+      })
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setDeciding(null)
+    }
   }
 
-  // Filter applications based on the selected status dropdown
   const visibleApplications = filterStatus === 'ALL'
     ? applications
     : applications.filter(a => a.status === filterStatus)
+
+  // ── Stats cards config — built from live data ─────────────────
+  const statCards = stats ? [
+    { label: 'Total Applications', value: stats.total,       icon: <FiFileText className="w-5 h-5" />, color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-900/20'   },
+    { label: 'Pending Review',     value: stats.pending,     icon: <FiClock    className="w-5 h-5" />, color: 'text-yellow-600 dark:text-yellow-400',bg: 'bg-yellow-50 dark:bg-yellow-900/20'},
+    { label: 'Accepted',           value: stats.accepted,    icon: <FiCheckCircle className="w-5 h-5"/>,color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+    { label: 'Registered Users',   value: users.length,      icon: <FiUsers    className="w-5 h-5" />, color: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-900/20'   },
+  ] : []
+
+  // ── Loading state ─────────────────────────────────────────────
+  if (loading) return (
+    <div className="min-h-full bg-light-bg dark:bg-dark-bg flex items-center justify-center">
+      <div className="flex items-center gap-3 text-light-muted dark:text-dark-muted">
+        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        Loading dashboard...
+      </div>
+    </div>
+  )
+
+  // ── Error state ───────────────────────────────────────────────
+  if (error) return (
+    <div className="min-h-full bg-light-bg dark:bg-dark-bg flex items-center justify-center px-6">
+      <div className="text-center">
+        <FiAlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+        <p className="text-red-500 dark:text-red-400 text-sm mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-full bg-light-bg dark:bg-dark-bg">
@@ -81,13 +173,15 @@ export default function AdminDashboard() {
 
         {/* ── Stats overview ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {MOCK_STATS.map(stat => (
+          {statCards.map(stat => (
             <div
               key={stat.label}
               className="bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border rounded-xl p-5"
             >
-              <div className="text-2xl mb-2">{stat.icon}</div>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stat.value}</p>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${stat.bg} ${stat.color}`}>
+                {stat.icon}
+              </div>
+              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
               <p className="text-xs text-light-muted dark:text-dark-muted mt-1">{stat.label}</p>
             </div>
           ))}
@@ -106,7 +200,6 @@ export default function AdminDashboard() {
                   className={`
                     px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors
                     ${activeTab === tab
-                      // Active tab — blue underline indicator
                       ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
                       : 'text-light-muted dark:text-dark-muted hover:text-light-text dark:hover:text-dark-text'
                     }
@@ -117,7 +210,6 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            {/* Filter — only visible on the Applications tab */}
             {activeTab === 'Applications' && (
               <select
                 value={filterStatus}
@@ -143,14 +235,18 @@ export default function AdminDashboard() {
           {activeTab === 'Applications' && (
             <div className="p-6">
               {visibleApplications.length === 0 ? (
-                <p className="text-center text-light-muted dark:text-dark-muted py-10 text-sm">
-                  No applications match this filter.
-                </p>
+                <div className="text-center py-10">
+                  <FiFileText className="w-8 h-8 text-light-muted dark:text-dark-muted mx-auto mb-3" />
+                  <p className="text-light-muted dark:text-dark-muted text-sm">
+                    No applications match this filter.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {visibleApplications.map(app => {
-                    const badge = STATUS_MAP[app.status]
+                    const badge    = STATUS_MAP[app.status] ?? STATUS_MAP.PENDING
                     const canDecide = app.status === 'PENDING' || app.status === 'UNDER_REVIEW'
+                    const isDeciding = deciding === app.id
 
                     return (
                       <div
@@ -161,7 +257,6 @@ export default function AdminDashboard() {
                           border border-light-border dark:border-dark-border
                         "
                       >
-                        {/* Application info */}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-semibold text-light-text dark:text-dark-text">
@@ -171,29 +266,37 @@ export default function AdminDashboard() {
                             <p className="text-sm text-light-muted dark:text-dark-muted">{app.school}</p>
                           </div>
                           <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
-                            {app.grade} · Submitted {app.submitted}
+                            {app.grade} · Submitted {app.submitted} · Ref: {app.refNumber}
                           </p>
                         </div>
 
-                        {/* Status badge + action buttons */}
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className={`text-xs font-semibold px-3 py-1 rounded-full ${badge.color}`}>
                             {badge.label}
                           </span>
 
-                          {/* Approve / Decline only shown when application can still be decided on */}
                           {canDecide && (
                             <>
                               <button
                                 onClick={() => handleDecision(app.id, 'ACCEPTED')}
-                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors"
+                                disabled={isDeciding}
+                                className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 transition-colors"
                               >
+                                {isDeciding
+                                  ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                                  : <FiCheckCircle className="w-3 h-3" />
+                                }
                                 Approve
                               </button>
                               <button
                                 onClick={() => handleDecision(app.id, 'DECLINED')}
-                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors"
+                                disabled={isDeciding}
+                                className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-colors"
                               >
+                                {isDeciding
+                                  ? <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                                  : <FiXCircle className="w-3 h-3" />
+                                }
                                 Decline
                               </button>
                             </>
@@ -210,31 +313,45 @@ export default function AdminDashboard() {
           {/* ── Users tab ── */}
           {activeTab === 'Users' && (
             <div className="p-6">
-              <div className="space-y-3">
-                {MOCK_USERS.map(u => {
-                  const roleBadge = ROLE_MAP[u.role] ?? { label: u.role, color: '' }
-                  return (
-                    <div
-                      key={u.id}
-                      className="
-                        flex items-center justify-between
-                        p-4 rounded-xl bg-light-bg dark:bg-dark-bg
-                        border border-light-border dark:border-dark-border
-                      "
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-light-text dark:text-dark-text">{u.name}</p>
-                        <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
-                          {u.email} · Joined {u.joined}
-                        </p>
+              {users.length === 0 ? (
+                <div className="text-center py-10">
+                  <FiUsers className="w-8 h-8 text-light-muted dark:text-dark-muted mx-auto mb-3" />
+                  <p className="text-light-muted dark:text-dark-muted text-sm">No users found.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {users.map(u => {
+                    const roleBadge = ROLE_MAP[u.role] ?? { label: u.role, color: '' }
+                    return (
+                      <div
+                        key={u.id}
+                        className="
+                          flex items-center justify-between
+                          p-4 rounded-xl bg-light-bg dark:bg-dark-bg
+                          border border-light-border dark:border-dark-border
+                        "
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs font-bold">
+                              {u.email?.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-light-text dark:text-dark-text">{u.email}</p>
+                            <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
+                              ID: {u.id}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${roleBadge.color}`}>
+                          {roleBadge.label}
+                        </span>
                       </div>
-                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${roleBadge.color}`}>
-                        {roleBadge.label}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 

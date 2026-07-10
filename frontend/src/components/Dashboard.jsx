@@ -1,15 +1,16 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUserRole, isLoggedIn } from '../hooks/Auth'
-import ParentDashboard from '../pages/ParentDashboardPage'
-import AdminDashboard from '../pages/AdminDashboardPage'
+import AdminDashboard   from '../pages/AdminDashboardPage'
+import ParentDashboard  from '../pages/ParentDashboardPage'
+import TeacherDashboard from '../pages/TeacherDashboardPage'
 
 // Dashboard is a "router" component — it doesn't render any UI itself.
 // It checks who is logged in and which role they have, then renders
 // the correct dashboard. This keeps each role's UI in its own file.
 export default function Dashboard() {
   const navigate  = useNavigate()
-  const role      = getUserRole()   // e.g. "ROLE_ADMIN" or "ROLE_PARENT"
+  const role      = getUserRole()   // e.g. "ROLE_ADMIN", "ROLE_PARENT", "ROLE_TEACHER"
 
   useEffect(() => {
     // If there's no valid token, redirect to login immediately.
@@ -23,8 +24,9 @@ export default function Dashboard() {
   if (!isLoggedIn()) return null
 
   // Render the correct dashboard based on role
-  if (role === 'ROLE_ADMIN')  return <AdminDashboard />
-  if (role === 'ROLE_PARENT') return <ParentDashboard />
+  if (role === 'ROLE_ADMIN')   return <AdminDashboard />
+  if (role === 'ROLE_PARENT')  return <ParentDashboard />
+  if (role === 'ROLE_TEACHER') return <TeacherDashboard />
 
   // Fallback for unexpected roles
   return (

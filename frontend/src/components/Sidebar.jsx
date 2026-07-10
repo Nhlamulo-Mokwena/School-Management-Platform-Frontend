@@ -1,19 +1,29 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getUserRole, logout } from '../hooks/Auth'
+import { 
+  FiFileText as NewspaperIcon, // Great clean alternative for articles/news
+  FiPenTool as PenToolIcon 
+} from 'react-icons/fi'
 
 // Nav items per role — only show what's relevant to that user
 const NAV_ITEMS = {
   ROLE_ADMIN: [
-    { label: 'Overview',     to: '/dashboard',              icon: GridIcon     },
-    { label: 'Applications', to: '/dashboard/applications', icon: ClipboardIcon },
-    { label: 'Users',        to: '/dashboard/users',        icon: UsersIcon    },
+    { label: 'Overview',     to: '/dashboard',                      icon: GridIcon      },
+    { label: 'Applications', to: '/dashboard/admin/applications',   icon: ClipboardIcon },
+    { label: 'Users',        to: '/dashboard/users',                icon: UsersIcon     },
+    { label: 'Post News',    to: '/dashboard/admin/news/post',          icon: PenToolIcon   },
+    { label: 'Manage News',  to: 'dashboard/admin/news/manage',     icon: NewspaperIcon },
+  ],
+  ROLE_TEACHER: [
+    { label: 'Overview',     to: '/dashboard',                        icon: GridIcon      },
+    { label: 'Applications', to: '/dashboard/teacher/applications',   icon: ClipboardIcon },
   ],
   ROLE_PARENT: [
-    { label: 'My Dashboard',   to: '/dashboard',               icon: GridIcon      },
-    { label: 'Applications',   to: '/dashboard/applications',  icon: ClipboardIcon },
-    { label: 'New Application',to: '/dashboard/apply',         icon: PlusIcon      },
-    { label: 'Child Info',     to: '/dashboard/child',         icon: UserIcon      },
+    { label: 'My Dashboard',    to: '/dashboard',               icon: GridIcon      },
+    { label: 'Applications',    to: '/dashboard/applications',  icon: ClipboardIcon },
+    { label: 'New Application', to: '/dashboard/apply',         icon: PlusIcon      },
+    { label: 'Child Info',      to: '/dashboard/child',         icon: UserIcon      },
   ],
 }
 
@@ -79,7 +89,9 @@ export default function Sidebar({ isDark, toggle }) {
         {!collapsed && (
           <div className="px-4 pt-4 pb-2">
             <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-              {role === 'ROLE_ADMIN' ? 'Administrator' : 'Parent'}
+              {role === 'ROLE_ADMIN'   ? 'Administrator'
+           : role === 'ROLE_TEACHER' ? 'Teacher'
+           : 'Parent'}
             </span>
           </div>
         )}

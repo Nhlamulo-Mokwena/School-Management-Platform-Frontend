@@ -1,8 +1,22 @@
-// Link is the react-router-dom component for internal navigation.
-// It updates the URL without a full page reload, keeping the SPA fast.
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 
 export default function Navbar({ isDark, toggle }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleScrollLink = (id) => {
+    if (location.pathname !== '/') {
+      // On a different page — navigate home first, then scroll after load
+      navigate('/')
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    } else {
+      // Already on home — just scroll
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
   return (
     <nav className="
       fixed top-0 left-0 right-0 z-50
@@ -12,7 +26,7 @@ export default function Navbar({ isDark, toggle }) {
     ">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
 
-        {/* Logo — clicking takes you back to home */}
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <svg className="w-7 h-7 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-7 9.99L12 17l7-4.01V14l-7 4-7-4v-1.01z"/>
@@ -22,24 +36,35 @@ export default function Navbar({ isDark, toggle }) {
           </span>
         </Link>
 
-        {/* Nav links — hidden on mobile */}
+        {/* Nav links */}
         <div className="hidden md:flex items-center gap-8">
+          <Link
+            to="/"
+            className="text-light-muted dark:text-dark-muted hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition-colors"
+          >
+            Home
+          </Link>
+          <Link
+            to="/news"
+            className="text-light-muted dark:text-dark-muted hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition-colors"
+          >
+            News
+          </Link>
           {[
-            { label: 'Home',         to: '/'  },
-            { label: 'How It Works', to: '/#how-it-works' },
-            { label: 'About',        to: '/#about' },
+            { label: 'How It Works', id: 'how-it-works' },
+            { label: 'About',        id: 'about'        },
           ].map(link => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className="text-light-muted dark:text-dark-muted hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition-colors"
+            <button
+              key={link.id}
+              onClick={() => handleScrollLink(link.id)}
+              className="text-light-muted dark:text-dark-muted hover:text-blue-600 dark:hover:text-blue-400 text-sm font-medium transition-colors bg-transparent border-0 cursor-pointer"
             >
               {link.label}
-            </Link>
+            </button>
           ))}
         </div>
 
-        {/* Right side: dark mode toggle + auth buttons */}
+        {/* Right side */}
         <div className="flex items-center gap-3">
 
           {/* Dark mode toggle */}
@@ -69,7 +94,7 @@ export default function Navbar({ isDark, toggle }) {
             )}
           </button>
 
-          {/* Register — outlined */}
+          {/* Register */}
           <Link
             to="/register"
             className="
@@ -83,7 +108,7 @@ export default function Navbar({ isDark, toggle }) {
             Register
           </Link>
 
-          {/* Login — filled */}
+          {/* Login */}
           <Link
             to="/login"
             className="
