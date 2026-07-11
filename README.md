@@ -24,7 +24,7 @@ applications, dashboards, and day-to-day school activities.
 - **Styling:** Tailwind CSS v4
 - **Routing:** React Router DOM
 - **State/Auth:** JWT stored client-side, role read from token payload
-- **API:** REST, communicating with the [SchoolApply backend](#) (Spring Boot)
+- **API:** REST, communicating with the [SchoolApply backend](https://github.com/Nhlamulo-Mokwena/School-Management-Platform-Backend) (Spring Boot)
 
 ## 🚀 Getting Started
 
